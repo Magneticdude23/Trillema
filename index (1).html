@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trilemma — Governor of the Central Bank</title>
+<meta name="description" content="A small-open-economy central bank simulator. Navigate the Impossible Trinity — a stable currency, open capital markets, and an independent interest rate — you only ever get two." />
+<meta property="og:title" content="Trilemma — Governor of the Central Bank" />
+<meta property="og:description" content="Run monetary and fiscal policy through currency crises, debt spirals, and speculative attacks. Pick any two of: a stable currency, open borders, your own interest rate." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/game.css" />
+</head>
+<body>
+
+<div class="top">
+  <div class="title">
+    <div>
+      <h1>Trilemma</h1>
+      <div class="sub">Small Open Economy Policy Simulator</div>
+    </div>
+    <button class="helpBtn" onclick="showIntro('help')" title="Field manual">?</button>
+  </div>
+  <div class="ticker" id="ticker">Set the starting conditions, then run your own policy through them. Pick <b>any two</b> of: a stable currency, open borders, and your own interest rate — never all three.</div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="k">Exchange Rate</div><div class="v" id="c-fx">100.0</div><small id="c-fxsub">domestic per $1</small></div>
+  <div class="card"><div class="k">FX Reserves</div><div class="v accentv" id="c-res">$200B</div><small id="c-ressub">war chest</small></div>
+  <div class="card"><div class="k">Inflation</div><div class="v" id="c-infl">4.0%</div><small id="c-infltarget">target 3.0%</small></div>
+  <div class="card"><div class="k">Unemployment</div><div class="v" id="c-unemp">6.0%</div><small id="c-unatural">natural 5.0%</small></div>
+  <div class="card"><div class="k">GDP / capita</div><div class="v" id="c-gdp">$12,000</div><small id="c-gapsub">gap 0.0%</small><small id="c-gdptotal" style="display:block;margin-top:2px;color:var(--accent)">Total $0.60T</small></div>
+  <div class="card"><div class="k">Approval</div><div class="v" id="c-appr">55</div><small>fired below 12</small></div>
+  <div class="card"><div class="k">Trade Balance</div><div class="v" id="c-trade">0.0</div>
+    <div class="gauge"><div class="zero"></div><div class="fill" id="c-tradefill"></div></div>
+  </div>
+  <div class="card"><div class="k">Score</div><div class="v" id="c-score">0</div><small id="c-daysub">Year 0.0 / 10</small></div>
+  <div class="card"><div class="k">Regime</div><div class="v" id="c-regime" style="font-size:15px">PEG</div><small id="c-fxdebt">FX debt $0B</small><small id="c-debt" style="display:block;margin-top:2px">Debt/GDP 60%</small></div>
+</div>
+
+<div class="layout">
+  <!-- CONTROLS -->
+  <div class="panel">
+    <h3>The Dashboard</h3>
+
+    <div class="grp">
+      <div class="lbl">Monetary autonomy <b id="autVal">30%</b></div>
+      <div class="autonomy"><div id="autBar" style="width:30%"></div></div>
+      <div class="hint">How free your rate really is. Peg + open borders ⇒ near zero.</div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Policy interest rate <b id="rateVal">6.00%</b></div>
+      <div class="stepper">
+        <button onclick="bumpRate(-0.25)">−</button>
+        <div class="val" id="rateBig">6.00</div>
+        <button onclick="bumpRate(0.25)">+</button>
+      </div>
+      <div class="hint">World rate <b id="istarInline">4.00%</b></div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Unconventional (balance sheet) <b id="bsVal">$0B</b></div>
+      <div class="row2">
+        <button class="g-outline" onclick="doQE()">QE ▲ buy assets</button>
+        <button class="r-outline" onclick="doQT()">QT ▼ sell assets</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Exchange-rate regime</div>
+      <div class="seg" id="regimeSeg">
+        <button data-r="float" onclick="setRegime('float')">Float</button>
+        <button data-r="managed" onclick="setRegime('managed')">Managed</button>
+        <button data-r="peg" class="on" onclick="setRegime('peg')">Peg</button>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <button class="y-outline" onclick="intervene(-1)">Defend (sell res)</button>
+        <button onclick="intervene(1)">Accumulate res</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Capital account openness <b id="openVal">70%</b></div>
+      <input type="range" id="openSlider" min="0" max="100" value="70" oninput="setOpen(this.value)" />
+      <div class="hint">Open = free flows &amp; growth. Closed = keep your rate, pay in growth &amp; risk premium.</div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Trade policy — tariffs <b id="tariffVal">0%</b></div>
+      <input type="range" id="tariffSlider" min="0" max="50" value="0" oninput="setTariff(this.value)" />
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Fiscal stance <b id="fiscalVal">0.0</b></div>
+      <input type="range" id="fiscalSlider" min="-4" max="4" value="0" step="0.5" oninput="setFiscal(this.value)" />
+      <div class="hint">− austerity … + stimulus. Your main tool once the trinity pins your rate. <span id="autoDeficitHint"></span></div>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Tax rate <b id="taxVal">25%</b></div>
+      <input type="range" id="taxSlider" min="10" max="50" value="25" step="1" oninput="setTax(this.value)" />
+      <div class="hint">Higher taxes shrink the fiscal multiplier (more leaks into savings/imports) but also shrink the deficit automatically in a boom.</div>
+    </div>
+
+    <div class="grp">
+      <button class="y-outline" id="borrowBtn" style="width:100%" onclick="borrowFx()">Borrow $40B in foreign currency (cheap now…)</button>
+    </div>
+
+    <div class="grp">
+      <div class="lbl">Simulation speed <b id="spdVal">1×</b></div>
+      <div class="seg seg4" id="spdSeg">
+        <button data-s="0.5" onclick="setSpeed(0.5)">0.5×</button>
+        <button data-s="1" class="on" onclick="setSpeed(1)">1×</button>
+        <button data-s="2" onclick="setSpeed(2)">2×</button>
+        <button data-s="4" onclick="setSpeed(4)">4×</button>
+      </div>
+    </div>
+
+    <div class="controls-foot">
+      <button id="startBtn" onclick="toggleRun()">▶ START</button>
+      <button onclick="showIntro('newrun')">Reset</button>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div>
+    <div class="charts" id="chartsGrid">
+      <div class="chart"><div class="ct"><span>Exchange rate (peg dashed)</span><span class="cv" id="cv-fx">100.0</span></div><canvas id="ch-fx"></canvas></div>
+      <div class="chart"><div class="ct"><span>FX reserves ($B)</span><span class="cv" id="cv-res">200</span></div><canvas id="ch-res"></canvas></div>
+      <div class="chart"><div class="ct"><span>Inflation vs target (%)</span><span class="cv" id="cv-infl">4.0</span></div><canvas id="ch-infl"></canvas></div>
+      <div class="chart"><div class="ct"><span>Unemployment (%)</span><span class="cv" id="cv-unemp">6.0</span></div><canvas id="ch-unemp"></canvas></div>
+      <div class="chart"><div class="ct"><span>Output gap (%)</span><span class="cv" id="cv-gap">0.0</span></div><canvas id="ch-gap"></canvas></div>
+      <div class="chart"><div class="ct"><span>Total GDP</span><span class="cv" id="cv-gdp">$0.6T</span></div><canvas id="ch-gdp"></canvas></div>
+      <div class="chart"><div class="ct"><span>Rates: home vs world (%)</span><span class="cv" id="cv-rate">6.0</span></div><canvas id="ch-rate"></canvas></div>
+      <div class="chart"><div class="ct"><span>Trade balance (surplus/deficit)</span><span class="cv" id="cv-trade">0.0</span></div><canvas id="ch-trade"></canvas></div>
+      <div class="chart"><div class="ct"><span>Capital flows</span><span class="cv" id="cv-cap">0.0</span></div><canvas id="ch-cap"></canvas></div>
+      <div class="chart"><div class="ct"><span>Balance sheet (QE/QT)</span><span class="cv" id="cv-bs">0</span></div><canvas id="ch-bs"></canvas></div>
+      <div class="chart"><div class="ct"><span>Public debt / GDP (%)</span><span class="cv" id="cv-debt">60</span></div><canvas id="ch-debt"></canvas></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <div class="lbl">Wire — <span id="clock">Jan, Year 1</span></div>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="introOverlay">
+  <div class="modal manual" style="max-width:820px">
+    <div class="tabs">
+      <button class="tab on" data-tab="setup" onclick="switchTab('setup')">Setup</button>
+      <button class="tab" data-tab="manual" onclick="switchTab('manual')">Field Manual</button>
+    </div>
+
+    <div id="tab-setup">
+      <div class="msub">Choose a starting economy, then adjust anything</div>
+      <div class="scenario-grid" id="scenarioGrid">
+        <button class="scenario-btn" data-k="custom" onclick="applyScenario('custom')">Custom<span class="stag">Blank slate</span></button>
+        <button class="scenario-btn on" data-k="advanced" onclick="applyScenario('advanced')">Advanced Economy, Today<span class="stag">Open, floating, inflation-targeting</span></button>
+        <button class="scenario-btn" data-k="india1947" onclick="applyScenario('india1947')">Newly Independent Economy<span class="stag">Illustrative — India, 1947</span></button>
+        <button class="scenario-btn" data-k="postwar" onclick="applyScenario('postwar')">Post-War Reconstruction<span class="stag">Fixed rate, capital controls</span></button>
+        <button class="scenario-btn" data-k="stagflation" onclick="applyScenario('stagflation')">1970s Oil Shock<span class="stag">Stagflation, newly floating</span></button>
+        <button class="scenario-btn" data-k="liberalization" onclick="applyScenario('liberalization')">Market Liberalization<span class="stag">Capital account opening mid-reform</span></button>
+        <button class="scenario-btn" data-k="petrostate" onclick="applyScenario('petrostate')">Petrostate Boom<span class="stag">Commodity windfall, hard peg</span></button>
+      </div>
+      <div class="brief" id="scenarioBrief"></div>
+
+      <div class="sfield setup-full" style="margin-bottom:14px">
+        <div class="lbl">Tenure length (years) <b id="setTenureVal">10</b></div>
+        <input type="range" id="setTenure" min="1" max="50" step="1" value="10" oninput="onSetupInput()" />
+      </div>
+
+      <div class="setup-grid">
+        <div class="sfield">
+          <div class="lbl">GDP per capita</div>
+          <input type="number" id="setGdppc" min="100" max="200000" step="50" value="12000" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Population (millions)</div>
+          <input type="number" id="setPopulation" min="1" max="2000" step="1" value="50" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield setup-full" style="margin-top:-6px">
+          <div class="hint" id="totalGdpHint">Total GDP: $0.60T</div>
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting FX reserves ($B) <b id="setReservesVal">200</b></div>
+          <input type="range" id="setReserves" min="1" max="500" step="1" value="200" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting inflation <b id="setInflVal">4.0%</b></div>
+          <input type="range" id="setInfl" min="-5" max="30" step="0.5" value="4" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting unemployment <b id="setUnempVal">6.0%</b></div>
+          <input type="range" id="setUnemp" min="1" max="30" step="0.5" value="6" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting policy rate <b id="setRatePolicyVal">6.00%</b></div>
+          <input type="range" id="setRatePolicy" min="0" max="35" step="0.25" value="6" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">World interest rate <b id="setRateWorldVal">4.00%</b></div>
+          <input type="range" id="setRateWorld" min="0" max="20" step="0.25" value="4" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Capital account openness <b id="setOpennessVal">70%</b></div>
+          <input type="range" id="setOpenness" min="0" max="100" step="1" value="70" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting FX debt ($B) <b id="setFxDebtVal">0</b></div>
+          <input type="range" id="setFxDebt" min="0" max="200" step="1" value="0" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting public debt / GDP <b id="setDebtRatioVal">60%</b></div>
+          <input type="range" id="setDebtRatio" min="0" max="200" step="5" value="60" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield setup-full">
+          <div class="lbl">Exchange-rate regime at start</div>
+          <div class="seg" id="setRegimeSeg">
+            <button data-r="float" onclick="setRegimePick('float')">Float</button>
+            <button data-r="managed" onclick="setRegimePick('managed')">Managed</button>
+            <button data-r="peg" class="on" onclick="setRegimePick('peg')">Peg</button>
+          </div>
+        </div>
+        <div class="sfield setup-full">
+          <div class="lbl">Peg against <span style="color:var(--dim);text-transform:none;font-weight:400">(illustrative anchor — sets world rate &amp; foreign inflation below)</span></div>
+          <div class="seg" style="grid-template-columns:repeat(5,1fr)" id="pegCurSeg">
+            <button data-c="USD" class="on" onclick="setPegCurrency('USD')">USD</button>
+            <button data-c="EUR" onclick="setPegCurrency('EUR')">EUR</button>
+            <button data-c="JPY" onclick="setPegCurrency('JPY')">JPY</button>
+            <button data-c="GBP" onclick="setPegCurrency('GBP')">GBP</button>
+            <button data-c="CNY" onclick="setPegCurrency('CNY')">CNY</button>
+          </div>
+        </div>
+        <div class="sfield">
+          <div class="lbl">Political approval <b id="setApprovalVal">55</b></div>
+          <input type="range" id="setApproval" min="10" max="90" step="1" value="55" oninput="onSetupInput()" />
+        </div>
+        <div class="sfield">
+          <div class="lbl">Starting tariff <b id="setTariff0Val">0%</b></div>
+          <input type="range" id="setTariff0" min="0" max="50" step="1" value="0" oninput="onSetupInput()" />
+        </div>
+      </div>
+
+      <details class="advanced">
+        <summary>Advanced calibration (natural rates &amp; anchors)</summary>
+        <div class="setup-grid">
+          <div class="sfield">
+            <div class="lbl">Inflation target <b id="setInflTargetVal">3.0%</b></div>
+            <input type="range" id="setInflTarget" min="-2" max="15" step="0.5" value="3" oninput="onSetupInput()" />
+          </div>
+          <div class="sfield">
+            <div class="lbl">Natural unemployment <b id="setUStarVal">5.0%</b></div>
+            <input type="range" id="setUStar" min="3" max="18" step="0.5" value="5" oninput="onSetupInput()" />
+          </div>
+          <div class="sfield">
+            <div class="lbl">Neutral real rate <b id="setRStarVal">2.0%</b></div>
+            <input type="range" id="setRStar" min="-2" max="6" step="0.5" value="2" oninput="onSetupInput()" />
+          </div>
+          <div class="sfield">
+            <div class="lbl">Foreign inflation <b id="setForeignInflVal">2.0%</b></div>
+            <input type="range" id="setForeignInfl" min="-2" max="10" step="0.5" value="2" oninput="onSetupInput()" />
+          </div>
+          <div class="sfield">
+            <div class="lbl">Starting fiscal stance <b id="setFiscal0Val">0.0</b></div>
+            <input type="range" id="setFiscal0" min="-4" max="4" step="0.5" value="0" oninput="onSetupInput()" />
+          </div>
+          <div class="sfield">
+            <div class="lbl">Starting tax rate <b id="setTaxRateVal">25%</b></div>
+            <input type="range" id="setTaxRate" min="10" max="50" step="1" value="25" oninput="onSetupInput()" />
+          </div>
+        </div>
+      </details>
+
+      <div class="sfield" style="margin-top:16px">
+        <div class="lbl">Additional graphs <span style="color:var(--dim);text-transform:none;font-weight:400">(optional — the charts you already see below are always shown)</span></div>
+        <div id="optChartsPicker" style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--dim);cursor:pointer">
+            <input type="checkbox" data-opt="bop" style="margin-top:3px" onchange="onSetupInput()" />
+            <span><b style="color:var(--text)">Balance of payments</b> — current + capital account combined, the actual flow that moves your reserves.</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--dim);cursor:pointer">
+            <input type="checkbox" data-opt="prices" style="margin-top:3px" onchange="onSetupInput()" />
+            <span><b style="color:var(--text)">Domestic vs foreign price level</b> — the gap purchasing-power parity pulls your exchange rate toward.</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--dim);cursor:pointer">
+            <input type="checkbox" data-opt="debtrate" style="margin-top:3px" onchange="onSetupInput()" />
+            <span><b style="color:var(--text)">Government borrowing rate vs policy rate</b> — the risk/QE spread on your public debt.</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-manual" style="display:none">
+      <div class="msub">Read before you take office</div>
+      <div class="trinote">
+        The <b>impossible trinity</b>: you can only ever have two of a fixed exchange rate, free capital flows, and your own interest rate. The controls below don't stop you from wanting all three — they just make the third one expensive. Watch the <b>Monetary autonomy</b> bar: it tells you how much of your rate you actually still control.
+      </div>
+      <div class="instr">
+        <div class="row">
+          <div class="name">Policy rate<span class="tag">Interest rate</span></div>
+          <div class="desc">Raise it to cool inflation and attract carry inflows; cut it to boost growth. <span class="when">Use it: <b>as your main lever whenever autonomy is high.</b> Under a peg with open capital, moving it far from the world rate drains reserves instead of working.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">QE / QT<span class="tag">Balance sheet</span></div>
+          <div class="desc">Buy assets (QE) to add stimulus once your policy rate is near zero; sell (QT) to drain excess liquidity. QE also compresses borrowing costs across the board — including your own government's — while QT raises them. <span class="when">Use it: <b>when the rate alone isn't enough</b> — QE adds a further growth nudge and cheapens debt service, but weakens the currency and adds to inflation.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Exchange-rate regime<span class="tag">Float / Managed / Peg</span></div>
+          <div class="desc">Choose how hard you defend a fixed rate. Float lets the market set it; Peg locks it and spends reserves to hold it. <span class="when">Use it: <b>Peg for stability if you have reserves to spare; Float when you need your interest rate free.</b></span></div>
+        </div>
+        <div class="row">
+          <div class="name">Defend / Accumulate<span class="tag">FX intervention</span></div>
+          <div class="desc">A direct, one-off spend or purchase of reserves to push the exchange rate the way you want it right now. <span class="when">Use it: <b>defend during a speculative attack</b>; accumulate when reserves are healthy and the currency is firm.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Capital account openness<span class="tag">Slider</span></div>
+          <div class="desc">How freely money can cross your border. Closing it lets you keep both a peg and your own rate. <span class="when">Use it: <b>close it if you must defend a peg while keeping a low rate</b> — you'll pay in slower growth and lower approval, not reserves.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Tariffs<span class="tag">Trade policy</span></div>
+          <div class="desc">Taxes on imports. They help net exports and can prop up a weak currency's trade balance. <span class="when">Use it: <b>sparingly</b> — push too far and trading partners retaliate, dragging your own exports back down.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Fiscal stance<span class="tag">Slider</span></div>
+          <div class="desc">Government spending and taxation, independent of the central bank. Its effect on output isn't 1-for-1 — it runs through the standard open-economy multiplier, 1/(1 − c(1−τ) + m), where c is how much of extra income people spend, τ is your tax rate, and m is how much leaks abroad through imports. More open economies (see Capital account openness) have smaller multipliers, because more of the stimulus leaks out. Running a deficit also nudges up your borrowing rate immediately — a bond-market reaction — on top of the slower drag through accumulated debt. <span class="when">Use it: <b>as your main stabiliser once the trinity has pinned your interest rate</b> — it's the one lever the peg can't touch.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Tax rate<span class="tag">Slider — automatic stabilizers</span></div>
+          <div class="desc">Tax revenue is (to first order) τ×GDP, so a recession shrinks revenue and widens the deficit automatically — with zero policy action from you. That's the textbook "automatic stabilizer": the budget looks worse in a downturn even if you never touch the fiscal slider, because output fell and so did tax collection. A higher tax rate means bigger automatic stabilizers (the budget cushions the cycle harder) but a smaller fiscal multiplier when you do use the slider (more of every dollar of stimulus gets taxed back before it can circulate). <span class="when">Watch it: <b>the dashboard shows your current automatic-stabilizer contribution</b> separately from your discretionary choice.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Foreign-currency borrowing<span class="tag">One-off</span></div>
+          <div class="desc">Raises reserves fast and cheap. The catch: the debt is in foreign currency, so a devaluation makes it heavier overnight. <span class="when">Use it: <b>only if you're confident the peg will hold</b> — it's a bet against your own currency falling.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Public debt / GDP<span class="tag">Automatic — driven by fiscal stance</span></div>
+          <div class="desc">Every unit of fiscal stimulus runs roughly a 1%-of-GDP deficit, which accumulates into debt. The ratio then evolves by the textbook identity: it grows when your average borrowing rate exceeds nominal GDP growth (r &gt; g), and shrinks when growth outruns it. Debt above ~60% of GDP pushes your borrowing rate up further — a feedback loop. <span class="when">Watch it: <b>past 220% you default</b>; approval also erodes past 100%.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Peg against<span class="tag">Setup screen — illustrative anchor</span></div>
+          <div class="desc">Picks which currency's rate &amp; inflation you're implicitly measured against (USD, EUR, JPY, GBP, CNY) — a stylised starting point, not a live feed. <span class="when">Use it: <b>to flavor a scenario</b> — e.g. peg to GBP for a Bretton-Woods-era sterling-area setup. Live cross-rates are a planned future addition.</span></div>
+        </div>
+        <div class="row">
+          <div class="name">Simulation speed<span class="tag">0.5× – 4×</span></div>
+          <div class="desc">Controls how fast the ten-year run plays out. <span class="when">Use it: <b>slow down around a crisis, speed up through calm years.</b></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-foot"><button id="beginBtn" onclick="beginTenure()">Begin tenure</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal stats">
+    <h2 id="modalTitle">Term ended</h2>
+    <div class="score" id="modalScore">0</div>
+    <p id="modalBody" style="text-align:center"></p>
+    <div class="stats-sub" id="modalTenure"></div>
+    <div class="stat-hdr"><span>Metric</span><span>Start</span><span></span><span>Final</span></div>
+    <div id="statsGrid"></div>
+    <div class="share-row">
+      <button onclick="shareStats()"><span id="shareBtnLabel">Share stats</span></button>
+      <button onclick="showIntro('newrun')">New tenure</button>
+    </div>
+    <div id="shareBox" style="display:none"><textarea id="shareText" readonly onclick="this.select()"></textarea></div>
+  </div>
+</div>
+
+<script src="js/game.js"></script><a class="modelref-link" href="model-reference.html" target="_blank" rel="noopener">Model reference ↗</a>
+</body>
+</html>
