@@ -2,7 +2,7 @@
 
 A small-open-economy policy simulator built around the **Impossible Trinity**: you can only ever have two of a stable currency, an open capital account, and an independent interest rate. Run monetary and fiscal policy through currency crises, debt spirals, and speculative attacks - and see exactly which of the three you're giving up.
 
-**[▶ Play it here](https://USERNAME.github.io/REPO/)** - replace `USERNAME` and `REPO` with your own once GitHub Pages is live.
+**[▶ Play it here](https://Magneticdude23.github.io/trilemma/)** 
 
 Inspired by [FedSim](https://asurixyz.github.io/fedsim/) by [@asurixyz](https://github.com/asurixyz).
 
